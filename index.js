@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { User } from "./model/user.js";
 import cookieParser from "cookie-parser";
 import csurf from "csurf";
+import jwt from "jsonwebtoken";
 
 const PORT = 3000;
 
@@ -11,6 +12,21 @@ const url = "mongodb://localhost:27017/client";
 const app = express();
 
 const csrf = csurf({ cookie: true })
+
+const checkToken = (req, res, next) => {
+  const token = req.cookies.token;
+  if (token) {
+    jwt.verify(token, "sdw2SDasq1aQRWCz", (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: 'Invalid token' });
+      } else {
+        next();
+      }
+    });
+  } else {
+    return res.status(401).json({ message: 'Token not found' });
+  }};
+
 
 app.use(express.static("css"));
 app.use(express.urlencoded({ extended: true }));
@@ -63,7 +79,7 @@ app.post("/add", async (req, res) => {
 	}
 });
 
-app.get("/edit/:id", csrf, async (req, res) => {
+app.get("/edit/:id", checkToken, csrf, async (req, res) => {
 	try {
 		const user = await User.findById(req.params.id);
 		res.render("edit", { user, csrfToken: req.csrfToken() });
@@ -97,6 +113,8 @@ app.get("/login", csrf, (req, res) => {
 app.post("/set-cookie", csrf, async (req, res) => {
 	const { name, password } = req.body;
 	if (name == "admin" && password == "123") {
+    const token = jwt.sign({ name }, "sdw2SDasq1aQRWCz", { expiresIn: '1h' });
+    res.cookie('token', token);
 		res.cookie("username", name);
 		res.redirect("/");
 	} else {
@@ -106,5 +124,6 @@ app.post("/set-cookie", csrf, async (req, res) => {
 
 app.get("/logout", (req, res) => {
 	res.clearCookie("username");
+  res.clearCookie("token")
 	res.redirect("/");
 });
